@@ -3,9 +3,12 @@ package plugins
 import (
 	"database/sql"
 	"fmt"
-	"github.com/zwo-bot/go-rofi-bookmarks/bookmark"
 	"io"
 	"os"
+
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/zwo-bot/go-rofi-bookmarks/bookmark"
+	"gopkg.in/ini.v1"
 )
 
 var home, _ = os.UserHomeDir()
@@ -40,12 +43,12 @@ func (c *firefoxPlugin) GetName() string {
 
 func (c *firefoxPlugin) GetBookmarks() bookmark.Bookmarks {
 	var bookmarks bookmark.Bookmarks
-
+	log := log.With("plugin", c.GetName())
 	profile_path := getProfilePath(profile)
 	log.Debug("FF profile path", "Path", profile_path)
 
 	moz_bookmarks, _ := getMozBookmarks(profile_path)
-	log.Debug("Bookmarks", moz_bookmarks)
+	log.Debug("Bookmarks", "content", moz_bookmarks)
 
 	for _, mozBookmark := range moz_bookmarks {
 		var bookmark bookmark.Bookmark
@@ -110,18 +113,18 @@ func getMozBookmarks(profile_path string) ([]mozBookmark, error) {
 		os.Exit(1)
 	}
 
-	log.Debug("TempDB: %v", dst.Name())
+	log.Debug("Tempporary DB", "name", dst.Name())
 
 	defer os.Remove(dst.Name())
 
 	nBytes, _ := io.Copy(dst, source)
 
-	log.Debug("%v bytes copied", nBytes)
+	log.Debug("Bytes copied", "count", nBytes)
 
 	db, err := sql.Open("sqlite3", dst.Name())
 
 	if err != nil {
-		log.Error("%v", err)
+		log.Error("Error", "error", err)
 		os.Exit(1)
 	}
 	defer db.Close()
@@ -145,7 +148,7 @@ func getMozBookmarks(profile_path string) ([]mozBookmark, error) {
 			continue
 		}
 		mozBookmarks = append(mozBookmarks, row)
-		log.Debug("%v", row)
+		log.Debug("Data", "row", row)
 	}
 	defer rows.Close()
 

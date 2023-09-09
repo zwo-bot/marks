@@ -22,8 +22,6 @@ func (b Bookmarks) Len() int {
 func (b Bookmark) UrlIsValid(i int) bool {
 	httpClient := new(http.Client)
 	_, err := httpClient.Head(b.URI)
-	if err != nil {
-		return false
-	}
-	return true
+
+	return err == nil
 }
