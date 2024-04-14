@@ -30,3 +30,7 @@ func GetBookmarks() (bookmark.Bookmarks, error) {
 	err := DB.Preload("Tags").Find(&bookmarks).Error
 	return bookmarks, err
 }
+
+func SaveBookmark(bookmark bookmark.Bookmark) error {
+	return DB.Save(&bookmark).Error
+}

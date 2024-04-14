@@ -1,9 +1,10 @@
 package plugins
 
 import (
-	"github.com/zwo-bot/go-rofi-bookmarks/bookmark"
 	"log/slog"
-	"os"
+
+	"github.com/zwo-bot/go-rofi-bookmarks/bookmark"
+	"github.com/zwo-bot/go-rofi-bookmarks/internal/logger"
 )
 
 type Plugin interface {
@@ -14,13 +15,10 @@ type Plugin interface {
 type Plugins []Plugin
 
 var initers = []Plugin{}
-
-var programLevel = new(slog.LevelVar)
-var log = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: programLevel}))
+var log *slog.Logger
 
 func Init() Plugins {
-	programLevel.Set(slog.LevelDebug)
-
+	log = logger.GetLogger()
 	log.Info("Initializing plugins")
 	plugins := Plugins{}
 	for _, p := range initers {
@@ -33,6 +31,7 @@ func Init() Plugins {
 }
 
 func (p Plugins) GetBookmarks() bookmark.Bookmarks {
+	log := logger.GetLogger()
 	var bookmarks bookmark.Bookmarks
 
 	for _, plugin := range p {
@@ -41,4 +40,13 @@ func (p Plugins) GetBookmarks() bookmark.Bookmarks {
 		bookmarks = append(bookmarks, plugin.GetBookmarks()...)
 	}
 	return bookmarks
+}
+
+func (p Plugins) ListPlugins() []string {
+	var plugins []string
+
+	for _, plugin := range p {
+		plugins = append(plugins, plugin.GetName())
+	}
+	return plugins
 }
