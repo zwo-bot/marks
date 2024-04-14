@@ -5,16 +5,13 @@ import (
 
 	"github.com/zwo-bot/go-rofi-bookmarks/bookmark"
 	"github.com/zwo-bot/go-rofi-bookmarks/internal/logger"
+	"github.com/zwo-bot/go-rofi-bookmarks/plugins/interfaces"
 )
 
-type Plugin interface {
-	GetName() string
-	GetBookmarks() bookmark.Bookmarks
-}
 
-type Plugins []Plugin
+type Plugins []interfaces.Plugin
 
-var initers = []Plugin{}
+var initers = []interfaces.Plugin{}
 var log *slog.Logger
 
 func Init() Plugins {
