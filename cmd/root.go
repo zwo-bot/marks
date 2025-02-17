@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/zwo-bot/go-rofi-bookmarks/db"
-	"github.com/zwo-bot/go-rofi-bookmarks/internal/config"
-	"github.com/zwo-bot/go-rofi-bookmarks/internal/logger"
+	"github.com/zwo-bot/marks/db"
+	"github.com/zwo-bot/marks/internal/config"
+	"github.com/zwo-bot/marks/internal/logger"
 )
 
 var rootOptions struct {
@@ -17,9 +17,9 @@ var rootOptions struct {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "bookmarks",
-	Short: "Bookmark manager for rofi",
-	Long:  `A simple bookmark manager for rofi`,
+	Use:   "marks",
+	Short: "Bookmark manager for launchers",
+	Long:  `A simple bookmark manager for rofi and other launchers`,
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		// Close database connection
 		if err := db.CloseDatabase(); err != nil {

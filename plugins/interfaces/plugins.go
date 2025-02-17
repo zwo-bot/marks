@@ -1,7 +1,7 @@
 package interfaces
 
 import (
-	"github.com/zwo-bot/go-rofi-bookmarks/bookmark"
+	"github.com/zwo-bot/marks/bookmark"
 )
 
 

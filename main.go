@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/zwo-bot/go-rofi-bookmarks/cmd"
+	"github.com/zwo-bot/marks/cmd"
 )
 
 func main() {

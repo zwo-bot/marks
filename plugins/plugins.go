@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/zwo-bot/go-rofi-bookmarks/bookmark"
-	"github.com/zwo-bot/go-rofi-bookmarks/internal/config"
-	"github.com/zwo-bot/go-rofi-bookmarks/internal/logger"
-	"github.com/zwo-bot/go-rofi-bookmarks/plugins/chrome"
-	"github.com/zwo-bot/go-rofi-bookmarks/plugins/firefox"
-	"github.com/zwo-bot/go-rofi-bookmarks/plugins/interfaces"
+	"github.com/zwo-bot/marks/bookmark"
+	"github.com/zwo-bot/marks/internal/config"
+	"github.com/zwo-bot/marks/internal/logger"
+	"github.com/zwo-bot/marks/plugins/chrome"
+	"github.com/zwo-bot/marks/plugins/firefox"
+	"github.com/zwo-bot/marks/plugins/interfaces"
 )
 
 type Plugins []interfaces.Plugin

@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/zwo-bot/go-rofi-bookmarks/bookmark"
-	"github.com/zwo-bot/go-rofi-bookmarks/internal/favicon"
-	"github.com/zwo-bot/go-rofi-bookmarks/internal/logger"
-	"github.com/zwo-bot/go-rofi-bookmarks/plugins/interfaces"
+	"github.com/zwo-bot/marks/bookmark"
+	"github.com/zwo-bot/marks/internal/favicon"
+	"github.com/zwo-bot/marks/internal/logger"
+	"github.com/zwo-bot/marks/plugins/interfaces"
 )
 
 type ChromePlugin struct {

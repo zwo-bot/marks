@@ -1,5 +1,5 @@
 SOURCES			= $(shell find . -name '*.go')
-BINARY			= "bookmarks"
+BINARY			= "marks"
 
 
 default: build.local

@@ -8,10 +8,10 @@ import (
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/zwo-bot/go-rofi-bookmarks/bookmark"
-	"github.com/zwo-bot/go-rofi-bookmarks/db"
-	"github.com/zwo-bot/go-rofi-bookmarks/internal/logger"
-	"github.com/zwo-bot/go-rofi-bookmarks/plugins/interfaces"
+	"github.com/zwo-bot/marks/bookmark"
+	"github.com/zwo-bot/marks/db"
+	"github.com/zwo-bot/marks/internal/logger"
+	"github.com/zwo-bot/marks/plugins/interfaces"
 )
 
 var mozBookmarks []mozBookmark

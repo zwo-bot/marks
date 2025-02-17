@@ -11,8 +11,8 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
-	"github.com/zwo-bot/go-rofi-bookmarks/bookmark"
-	"github.com/zwo-bot/go-rofi-bookmarks/internal/logger"
+	"github.com/zwo-bot/marks/bookmark"
+	"github.com/zwo-bot/marks/internal/logger"
 )
 
 var DB *gorm.DB

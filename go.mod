@@ -1,4 +1,4 @@
-module github.com/zwo-bot/go-rofi-bookmarks
+module github.com/zwo-bot/marks
 
 go 1.21
 
