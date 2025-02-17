@@ -14,6 +14,7 @@ type Plugins []interfaces.Plugin
 var initers = []interfaces.Plugin{}
 var log *slog.Logger
 
+// Init initializes all plugins
 func Init() Plugins {
 	log = logger.GetLogger()
 	log.Info("Initializing plugins")
@@ -35,6 +36,20 @@ func (p Plugins) GetBookmarks() bookmark.Bookmarks {
 		log.With("plugin", plugin.GetName())
 		log.Info("Getting bookmarks")
 		bookmarks = append(bookmarks, plugin.GetBookmarks()...)
+	}
+	return bookmarks
+}
+
+func (p Plugins) GetBookmarsByPlugin(pluginName string) bookmark.Bookmarks {
+	log := logger.GetLogger()
+	var bookmarks bookmark.Bookmarks
+
+	for _, plugin := range p {
+		if plugin.GetName() == pluginName {
+			log.With("plugin", plugin.GetName())
+			log.Info("Getting bookmarks")
+			bookmarks = append(bookmarks, plugin.GetBookmarks()...)
+		}
 	}
 	return bookmarks
 }

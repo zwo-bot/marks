@@ -5,8 +5,9 @@ import (
 )
 
 func init() {
+	config := &chrome.ChromeConfig{}
 	plugin := &chrome.ChromePlugin{
-		URL: "test",
+		Config: config,
 	}
 
 	initers = append(initers, plugin)

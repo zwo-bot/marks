@@ -10,17 +10,12 @@ import (
 	"github.com/zwo-bot/go-rofi-bookmarks/bookmark"
 	"github.com/zwo-bot/go-rofi-bookmarks/internal/logger"
 	"github.com/zwo-bot/go-rofi-bookmarks/plugins/interfaces"
-	"gopkg.in/ini.v1"
 )
 
-var home, _ = os.UserHomeDir()
-var ffDir = home + "/snap/firefox/common/.mozilla/firefox/"
-var profile = "Default"
 var mozBookmarks []mozBookmark
 
 type FirefoxPlugin struct {
-	URL string
-	Config *interfaces.PluginConfig
+	Config interfaces.PluginConfig
 }
 
 type mozBookmark struct {
@@ -37,22 +32,41 @@ func (fp *FirefoxPlugin) GetName() string {
 }
 
 func (fp *FirefoxPlugin) GetConfig() interfaces.PluginConfig {
-	return *fp.Config
+	return fp.Config
 }
 
 func (fp *FirefoxPlugin) SetConfig(fc interfaces.PluginConfig) {
-	fp.Config = &fc
+
+	fp.Config = fc
 }
 
 func (fp *FirefoxPlugin) GetBookmarks() bookmark.Bookmarks {
 	var bookmarks bookmark.Bookmarks
+
 	log := logger.GetLogger()
 	log.With("plugin", fp.GetName())
-	profile_path := getProfilePath(profile)
-	log.Debug("FF profile path", "Path", profile_path)
 
-	moz_bookmarks, _ := getMozBookmarks(profile_path)
-	log.Debug("Bookmarks", "content", moz_bookmarks)
+	fpConfig := fp.GetConfig()
+
+	firefoxConfig, ok := fpConfig.(*FirefoxConfig)
+	if !ok {
+		// Handle the error or unexpected type
+		log.Error("Configuration is not of type *FirefoxConfig")
+		return bookmark.Bookmarks{}
+	}
+
+	err := firefoxConfig.Load()
+	if err != nil {
+		log.Error("Error loading configuration", "error", err)
+		return bookmark.Bookmarks{}
+	}
+
+	// Get bookmarks from the configured profile path
+	moz_bookmarks, err := getMozBookmarks(firefoxConfig.ProfilePath)
+	if err != nil {
+		log.Debug("Could not get Firefox bookmarks", "error", err)
+		return bookmark.Bookmarks{}
+	}
 
 	for _, mozBookmark := range moz_bookmarks {
 		var bookmark bookmark.Bookmark
@@ -72,6 +86,7 @@ func (fp *FirefoxPlugin) GetBookmarks() bookmark.Bookmarks {
 		}
 
 		bookmark.Path = getPath(mozBookmark)
+		bookmark.Source = fp.GetName()
 
 		if has_url {
 			bookmarks = append(bookmarks, bookmark)
@@ -82,58 +97,31 @@ func (fp *FirefoxPlugin) GetBookmarks() bookmark.Bookmarks {
 	return bookmarks
 }
 
-func getProfilePath(profile string) string {
-	var path string
-
-	log := logger.GetLogger()
-	cfg, err := ini.Load(ffDir + "/installs.ini")
-
-	if err != nil {
-		log.Error("Fail to read file", "error", err)
-		os.Exit(1)
-	}
-
-	for _, sec := range cfg.Sections() {
-		if sec.HasKey("Default") {
-			name, _ := sec.GetKey("Default")
-			path = fmt.Sprintf("%s/%s", ffDir, name)
-			break
-		}
-	}
-	return path
-}
-
 func getMozBookmarks(profile_path string) ([]mozBookmark, error) {
 	log := logger.GetLogger()
 	
+	// Check if places.sqlite exists
 	source, err := os.Open(profile_path + "/places.sqlite")
-
 	if err != nil {
-		log.Error("%v", err)
-		os.Exit(1)
+		return nil, err
 	}
-
 	defer source.Close()
 
+	// Create temporary copy of places.sqlite
 	dst, err := os.CreateTemp("", "ff_places")
 	if err != nil {
-		log.Error("Error creating temp file", "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error creating temp file: %v", err)
 	}
-
-	log.Debug("Tempporary DB", "name", dst.Name())
-
 	defer os.Remove(dst.Name())
 
-	nBytes, _ := io.Copy(dst, source)
+	if _, err := io.Copy(dst, source); err != nil {
+		return nil, fmt.Errorf("error copying database: %v", err)
+	}
 
-	log.Debug("Bytes copied", "count", nBytes)
-
+	// Open database connection
 	db, err := sql.Open("sqlite3", dst.Name())
-
 	if err != nil {
-		log.Error("Error", "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error opening database: %v", err)
 	}
 	defer db.Close()
 

@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/zwo-bot/go-rofi-bookmarks/internal/config"
 	"github.com/zwo-bot/go-rofi-bookmarks/internal/logger"
 )
 
@@ -39,4 +41,10 @@ func init() {
 	cobra.OnInitialize( func() {
 		logger.Initialize(rootOptions.logLevel)
 	})
+
+	err := config.InitializeConfig()
+	if err != nil {
+		logger.GetLogger().Error("Error initializing config")
+		os.Exit(1)
+	}
 }

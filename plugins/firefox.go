@@ -8,8 +8,9 @@ import (
 
 func init() {
 
+	config := &firefox.FirefoxConfig{}
 	plugin := &firefox.FirefoxPlugin{
-		URL: "test",
+		Config: config,
 	}
 	initers = append(initers, plugin)
 }
