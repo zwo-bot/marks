@@ -19,10 +19,23 @@ var GlobalConfig AppConfig
 
 const configFilename = "app_config.json"
 
+var customConfigPath string
+
+func SetCustomConfigPath(path string) {
+    customConfigPath = path
+}
+
 func InitializeConfig() error {
-    configPath, err := GetConfigPath(configFilename)
-    if err != nil {
-        return err
+    var configPath string
+    var err error
+
+    if customConfigPath != "" {
+        configPath = customConfigPath
+    } else {
+        configPath, err = GetConfigPath(configFilename)
+        if err != nil {
+            return err
+        }
     }
 
     // Check if the configuration file already exists
@@ -72,9 +85,16 @@ func GetConfigPath(filename string) (string, error) {
 }
 
 func LoadAppConfig() error {
-	configPath, err := GetConfigPath(configFilename)
-	if err != nil {
-		return err
+	var configPath string
+	var err error
+
+	if customConfigPath != "" {
+		configPath = customConfigPath
+	} else {
+		configPath, err = GetConfigPath(configFilename)
+		if err != nil {
+			return err
+		}
 	}
 
 	data, err := os.ReadFile(configPath)
@@ -86,9 +106,16 @@ func LoadAppConfig() error {
 }
 
 func SaveAppConfig() error {
-	configPath, err := GetConfigPath(configFilename)
-	if err != nil {
-		return err
+	var configPath string
+	var err error
+
+	if customConfigPath != "" {
+		configPath = customConfigPath
+	} else {
+		configPath, err = GetConfigPath(configFilename)
+		if err != nil {
+			return err
+		}
 	}
 
 	if err := ensureDir(configPath); err != nil {

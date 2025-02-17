@@ -13,6 +13,14 @@ type FirefoxConfig struct {
 }
 
 func (c *FirefoxConfig) Load() error {
+	// If profile path is already set (from config file), verify it exists
+	if c.ProfilePath != "" {
+		if _, err := os.Stat(c.ProfilePath); err == nil {
+			return nil // Use the configured path
+		}
+	}
+
+	// Otherwise, try to auto-detect
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
