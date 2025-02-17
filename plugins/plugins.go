@@ -1,67 +1,40 @@
 package plugins
 
 import (
-	"encoding/json"
-	"log/slog"
-
 	"github.com/zwo-bot/marks/bookmark"
 	"github.com/zwo-bot/marks/internal/config"
 	"github.com/zwo-bot/marks/internal/logger"
-	"github.com/zwo-bot/marks/plugins/chrome"
-	"github.com/zwo-bot/marks/plugins/firefox"
 	"github.com/zwo-bot/marks/plugins/interfaces"
+	reg "github.com/zwo-bot/marks/plugins/registry"
 )
 
 type Plugins []interfaces.Plugin
 
-var log *slog.Logger
-
 // Init initializes all plugins
 func Init() Plugins {
-	log = logger.GetLogger()
+	log := logger.GetLogger()
 	log.Info("Initializing plugins")
 	plugins := Plugins{}
 
-	// Initialize Firefox plugin
-	ffConfig := &firefox.FirefoxConfig{}
-	if pluginConfig, ok := config.GlobalConfig.Plugins["firefox"]; ok {
-		jsonData, err := json.Marshal(pluginConfig)
-		if err != nil {
-			log.Error("Error marshaling Firefox config", "error", err)
-		} else {
-			if err := json.Unmarshal(jsonData, ffConfig); err != nil {
-				log.Error("Error unmarshaling Firefox config", "error", err)
-			} else {
-				log.Debug("Loaded Firefox config", "profile_path", ffConfig.ProfilePath)
-				// Only add Firefox plugin if we have a valid config
-				plugins = append(plugins, &firefox.FirefoxPlugin{Config: ffConfig})
-				log.Info("Added Firefox plugin")
-			}
+	// Initialize registered plugins
+	for _, name := range reg.ListPlugins() {
+		log.Debug("Initializing plugin", "name", name)
+		
+		// Get plugin config if available
+		var pluginConfig interface{}
+		if cfg, ok := config.GlobalConfig.Plugins[name]; ok {
+			pluginConfig = cfg
 		}
-	} else {
-		log.Debug("No Firefox config found")
-	}
 
-	// Initialize Chrome plugin
-	chromeConfig := &chrome.ChromeConfig{}
-	if pluginConfig, ok := config.GlobalConfig.Plugins["chrome"]; ok {
-		jsonData, err := json.Marshal(pluginConfig)
+		// Create plugin instance
+		plugin, err := reg.Create(name, pluginConfig)
 		if err != nil {
-			log.Error("Error marshaling Chrome config", "error", err)
-		} else {
-			if err := json.Unmarshal(jsonData, chromeConfig); err != nil {
-				log.Error("Error unmarshaling Chrome config", "error", err)
-			} else {
-				log.Debug("Loaded Chrome config", "profile_path", chromeConfig.ProfilePath)
-				plugins = append(plugins, &chrome.ChromePlugin{Config: chromeConfig})
-				log.Info("Added Chrome plugin")
-			}
+			log.Error("Failed to initialize plugin", "name", name, "error", err)
+			continue
 		}
-	} else {
-		// Add Chrome plugin with empty config to allow auto-detection
-		log.Debug("No Chrome config found, using auto-detection")
-		plugins = append(plugins, &chrome.ChromePlugin{Config: chromeConfig})
-		log.Info("Added Chrome plugin with auto-detection")
+
+		plugins = append(plugins, plugin)
+		log.Info("Added plugin", "name", name)
 	}
 
 	return plugins
@@ -81,7 +54,7 @@ func (p Plugins) GetBookmarks() bookmark.Bookmarks {
 	return bookmarks.RemoveDuplicates()
 }
 
-func (p Plugins) GetBookmarsByPlugin(pluginName string) bookmark.Bookmarks {
+func (p Plugins) GetBookmarksByPlugin(pluginName string) bookmark.Bookmarks {
 	log := logger.GetLogger()
 	var bookmarks bookmark.Bookmarks
 

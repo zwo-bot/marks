@@ -1,6 +1,21 @@
-# go-rofi-bookmarks
+# marks
 
-A rofi plugin to search and manage browser bookmarks.
+A bookmark manager for rofi and other launchers. Access and search your browser bookmarks quickly and efficiently.
+
+## Features
+
+- Supports Firefox and Chrome/Chromium bookmarks
+- Automatic browser profile detection
+- Favicon support
+- Fast SQLite-based caching
+- Clean, single-line display with title and URL
+
+## Usage
+
+With rofi:
+```bash
+rofi -show bookmarks -show-icons -modi 'bookmarks: ./marks rofi'
+```
 
 ## Configuration
 
@@ -9,8 +24,8 @@ The application will automatically try to find your browser profiles in common l
 ### Default Configuration File Location
 
 Create your configuration file in one of these locations:
-- `~/.config/go-rofi-bookmarks/config.json`
-- `$XDG_CONFIG_HOME/go-rofi-bookmarks/config.json`
+- `~/.config/marks/config.json`
+- `$XDG_CONFIG_HOME/marks/config.json`
 
 ### Example Configuration
 
@@ -40,3 +55,11 @@ The default profile is typically located at:
 - Flatpak: `~/.var/app/com.google.Chrome/config/google-chrome/Default`
 
 Note: The application will attempt to automatically find these paths, so manual configuration is only needed if the automatic detection fails or if you want to use a different profile.
+
+## Building
+
+```bash
+make build.local
+```
+
+This will create the `marks` binary in the `build` directory.
