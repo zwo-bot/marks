@@ -4,7 +4,6 @@ import (
 	"github.com/zwo-bot/marks/bookmark"
 )
 
-
 type PluginConfig interface {
 	Load() error
 	Save() error

@@ -46,10 +46,12 @@ func (fp *FirefoxPlugin) GetBookmarks() bookmark.Bookmarks {
 	var bookmarks bookmark.Bookmarks
 
 	log := logger.GetLogger()
+	log.Debug("Starting Firefox bookmark retrieval")
 	log.Debug("Getting Firefox bookmarks", "plugin", fp.GetName())
 
 	fpConfig := fp.GetConfig()
 	log.Debug("Got Firefox config", "config", fpConfig)
+	log.Debug("Config type", "type", fmt.Sprintf("%T", fpConfig))
 
 	firefoxConfig, ok := fpConfig.(*FirefoxConfig)
 	if !ok {
@@ -70,8 +72,10 @@ func (fp *FirefoxPlugin) GetBookmarks() bookmark.Bookmarks {
 	moz_bookmarks, err := getMozBookmarks(firefoxConfig.ProfilePath)
 	if err != nil {
 		log.Debug("Could not get Firefox bookmarks", "error", err)
+		log.Debug("Failed at getMozBookmarks", "profile_path", firefoxConfig.ProfilePath)
 		return bookmark.Bookmarks{}
 	}
+	log.Debug("Retrieved Mozilla bookmarks", "count", len(moz_bookmarks))
 
 	for _, mozBookmark := range moz_bookmarks {
 		var bookmark bookmark.Bookmark
@@ -119,10 +123,14 @@ func (fp *FirefoxPlugin) GetBookmarks() bookmark.Bookmarks {
 
 func getMozBookmarks(profile_path string) ([]mozBookmark, error) {
 	log := logger.GetLogger()
+	log.Debug("Starting getMozBookmarks", "profile_path", profile_path)
 	
 	// Check if places.sqlite exists
-	source, err := os.Open(profile_path + "/places.sqlite")
+	placesPath := profile_path + "/places.sqlite"
+	log.Debug("Opening places.sqlite", "path", placesPath)
+	source, err := os.Open(placesPath)
 	if err != nil {
+		log.Debug("Failed to open places.sqlite", "error", err)
 		return nil, err
 	}
 	defer source.Close()
@@ -148,24 +156,28 @@ func getMozBookmarks(profile_path string) ([]mozBookmark, error) {
 	sqlStmt := `SELECT moz_bookmarks.id, moz_bookmarks.parent, moz_bookmarks.type, moz_bookmarks.title, moz_places.url, moz_places.description
 	FROM moz_bookmarks LEFT JOIN moz_places ON moz_bookmarks.fk=moz_places.id`
 
+	log.Debug("Executing SQL query", "query", sqlStmt)
 	rows, err := sqlDB.Query(sqlStmt)
 	if err != nil {
-		log.Debug("%q: %s\n", err)
+		log.Debug("SQL query failed", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
 
 	var bookmarks []mozBookmark
+	rowCount := 0
 	for rows.Next() {
+		rowCount++
 		var row mozBookmark
 		err = rows.Scan(&row.Id, &row.Parent, &row.Typ, &row.Title, &row.Url, &row.Description)
 		if err != nil {
-			log.Error("%v", err)
+			log.Error("Error scanning row", "error", err)
 			continue
 		}
 		bookmarks = append(bookmarks, row)
-		log.Debug("Data", "row", row)
+		log.Debug("Processed bookmark row", "id", row.Id, "title", row.Title, "url", row.Url)
 	}
+	log.Debug("Finished processing rows", "total_rows", rowCount, "valid_bookmarks", len(bookmarks))
 
 	// Get favicons
 	faviconsDB, err := copyAndOpenDB(profile_path+"/favicons.sqlite", "ff_favicons")
@@ -206,39 +218,131 @@ func getMozBookmarks(profile_path string) ([]mozBookmark, error) {
 }
 
 func copyAndOpenDB(sourcePath string, prefix string) (*sql.DB, error) {
+	log := logger.GetLogger()
+	log.Debug("Starting database copy operation", "source", sourcePath)
+
 	source, err := os.Open(sourcePath)
 	if err != nil {
+		log.Debug("Failed to open source database", "error", err)
 		return nil, err
 	}
 	defer source.Close()
 
 	dst, err := os.CreateTemp("", prefix)
 	if err != nil {
+		log.Debug("Failed to create temp file", "error", err)
 		return nil, fmt.Errorf("error creating temp file: %v", err)
 	}
 	defer os.Remove(dst.Name())
 
 	if _, err := io.Copy(dst, source); err != nil {
+		log.Debug("Failed to copy database", "error", err)
 		return nil, fmt.Errorf("error copying database: %v", err)
 	}
 
-	return sql.Open("sqlite3", dst.Name())
+	// Ensure all writes are flushed to disk
+	if err := dst.Sync(); err != nil {
+		log.Debug("Failed to sync database file", "error", err)
+		return nil, fmt.Errorf("error syncing database: %v", err)
+	}
+
+	// Close the file to ensure all writes are complete
+	if err := dst.Close(); err != nil {
+		log.Debug("Failed to close database file", "error", err)
+		return nil, fmt.Errorf("error closing database: %v", err)
+	}
+
+	log.Debug("Opening copied database", "path", dst.Name())
+	db, err := sql.Open("sqlite3", dst.Name())
+	if err != nil {
+		log.Debug("Failed to open database", "error", err)
+		return nil, err
+	}
+
+	// Initialize the database connection with proper settings
+	pragmas := []string{
+		"PRAGMA journal_mode=WAL",
+		"PRAGMA synchronous=NORMAL",
+		"PRAGMA foreign_keys=ON",
+		"PRAGMA temp_store=MEMORY",
+	}
+
+	for _, pragma := range pragmas {
+		if _, err := db.Exec(pragma); err != nil {
+			log.Debug("Failed to set pragma", "pragma", pragma, "error", err)
+			db.Close()
+			return nil, fmt.Errorf("error setting pragma %s: %v", pragma, err)
+		}
+	}
+
+	// Verify tables exist
+	var tableCount int
+	err = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='moz_pages_w_icons'").Scan(&tableCount)
+	if err != nil {
+		log.Debug("Failed to verify tables", "error", err)
+		db.Close()
+		return nil, fmt.Errorf("error verifying tables: %v", err)
+	}
+	if tableCount == 0 {
+		log.Debug("Required table not found in copied database", "table", "moz_pages_w_icons")
+		db.Close()
+		return nil, fmt.Errorf("required table moz_pages_w_icons not found")
+	}
+
+	log.Debug("Successfully initialized database connection")
+	return db, nil
 }
 
 func getFavicon(sqlDB *sql.DB, url string) ([]byte, error) {
 	log := logger.GetLogger()
+	log.Debug("Starting favicon retrieval", "url", url)
+
 	var iconData []byte
 
-	// First check if the URL exists in moz_pages_w_icons
+	// First try to get the page ID and icon data in a single query
+	query := `
+		WITH page AS (
+			SELECT id FROM moz_pages_w_icons WHERE page_url = ?
+		)
+		SELECT DISTINCT ic.data
+		FROM page
+		JOIN moz_icons_to_pages ip ON ip.page_id = page.id
+		JOIN moz_icons ic ON ic.id = ip.icon_id
+		ORDER BY ic.width DESC
+		LIMIT 1
+	`
+
+	log.Debug("Executing favicon query", "query", query)
+	err := sqlDB.QueryRow(query, url).Scan(&iconData)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			log.Debug("No favicon found for URL", "url", url)
+			return nil, nil
+		}
+		// Try alternative query if the first one fails
+		log.Debug("Primary query failed, trying alternative", "error", err)
+		return getFaviconAlternative(sqlDB, url)
+	}
+
+	log.Debug("Found favicon data", "url", url, "size", len(iconData))
+	return iconData, nil
+}
+
+// Alternative method to get favicon if the primary method fails
+func getFaviconAlternative(sqlDB *sql.DB, url string) ([]byte, error) {
+	log := logger.GetLogger()
+	log.Debug("Trying alternative favicon retrieval", "url", url)
+
+	// Try to get page ID first
 	var pageID int64
 	err := sqlDB.QueryRow("SELECT id FROM moz_pages_w_icons WHERE page_url = ?", url).Scan(&pageID)
 	if err != nil {
-		if err != sql.ErrNoRows {
-			log.Debug("Error checking page URL", "error", err)
-		} else {
+		if err == sql.ErrNoRows {
 			log.Debug("No page found for URL", "url", url)
+			return nil, nil
 		}
-		return nil, nil
+		log.Debug("Error getting page ID", "error", err)
+		return nil, err
 	}
 	log.Debug("Found page ID", "url", url, "page_id", pageID)
 
@@ -266,29 +370,24 @@ func getFavicon(sqlDB *sql.DB, url string) ([]byte, error) {
 		return nil, nil
 	}
 
-	// Get the icon data using the correct joins
-	query := `
-		SELECT ic.data, ic.width
-		FROM moz_icons ic
-		WHERE ic.id = ?
-		ORDER BY ic.width DESC
-		LIMIT 1
-	`
-
-	var width int64
+	// Try to get icon data for each icon ID
+	var iconData []byte
 	for _, iconID := range iconIDs {
-		err = sqlDB.QueryRow(query, iconID).Scan(&iconData, &width)
+		err = sqlDB.QueryRow("SELECT data FROM moz_icons WHERE id = ?", iconID).Scan(&iconData)
 		if err != nil {
 			if err != sql.ErrNoRows {
 				log.Debug("Error getting icon data", "error", err, "icon_id", iconID)
 			}
 			continue
 		}
-		log.Debug("Found icon data", "url", url, "icon_id", iconID, "width", width, "size", len(iconData))
-		break
+		if len(iconData) > 0 {
+			log.Debug("Found icon data", "url", url, "icon_id", iconID, "size", len(iconData))
+			return iconData, nil
+		}
 	}
 
-	return iconData, nil
+	log.Debug("No valid icon data found", "url", url)
+	return nil, nil
 }
 
 func getById(id int) mozBookmark {

@@ -1,0 +1,10 @@
+{
+  "Plugins": {
+    "firefox": {
+      "profile_path": "~/.mozilla/firefox/xxxxxxxx.default-release"
+    },
+    "chrome": {
+      "profile_path": "~/.config/google-chrome/Default"
+    }
+  }
+}
