@@ -11,9 +11,10 @@ import (
 )
 
 var rootOptions struct {
-	logFormat  string
-	logLevel   string
-	configPath string
+	logFormat   string
+	logLevel    string
+	configPath  string
+	logFilePath string
 }
 
 var rootCmd = &cobra.Command{
@@ -45,6 +46,12 @@ func init() {
 		"txt",
 		"log format [json|text]",
 	)
+	rootCmd.PersistentFlags().StringVar(
+		&rootOptions.logFilePath,
+		"log-file",
+		"",
+		"Path to log file (if not set, logs only to stderr)",
+	)
 	rootCmd.PersistentFlags().StringVarP(
 		&rootOptions.configPath,
 		"config", "c",
@@ -54,7 +61,7 @@ func init() {
 
 	cobra.OnInitialize(func() {
 		// Initialize logger first
-		logger.Initialize(rootOptions.logLevel)
+		logger.Initialize(rootOptions.logLevel, rootOptions.logFilePath)
 		log := logger.GetLogger()
 
 		// Initialize config

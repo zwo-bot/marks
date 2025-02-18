@@ -124,9 +124,25 @@ func showRofiBookmarks(cmd *cobra.Command, args []string) {
 	// Pass log level to maintain consistent logging
 	args = append(args, "--log-level", rootOptions.logLevel)
 
+	if rootOptions.logFilePath != "" {
+		args = append(args, "--log-file", rootOptions.logFilePath)
+	}
+
 	updateCmd := exec.Command(os.Args[0], args...)
+	
+	// Inherit the parent process's environment
+	updateCmd.Env = os.Environ()
+	
 	// Start the command without waiting for it to complete
 	if err := updateCmd.Start(); err != nil {
-		log.Debug("Error starting update process", "error", err)
+		log.Error("Error starting update process", "error", err)
+	} else {
+		log.Debug("Started update process", "pid", updateCmd.Process.Pid)
+		// Don't wait for the process to complete since we want it to run in background
+		go func() {
+			if err := updateCmd.Wait(); err != nil {
+				log.Error("Update process failed", "error", err)
+			}
+		}()
 	}
 }

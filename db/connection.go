@@ -62,27 +62,33 @@ func GetBookmarks() (bookmark.Bookmarks, error) {
 		return nil, err
 	}
 
-	// Convert db.Bookmark to bookmark.Bookmark
-	var bookmarks bookmark.Bookmarks
-	for _, b := range dbBookmarks {
-		bookmark := bookmark.Bookmark{
-			Title:       b.Title,
-			Path:        b.Path,
-			Description: b.Description,
-			URI:         b.URI,
-			Domain:      b.Domain,
-			Source:      b.Source,
-		}
+// Convert db.Bookmark to bookmark.Bookmark
+var bookmarks bookmark.Bookmarks
+for _, b := range dbBookmarks {
+    bookmark := bookmark.Bookmark{
+        Title:       b.Title,
+        Path:        b.Path,
+        Description: b.Description,
+        URI:         b.URI,
+        Domain:      b.Domain,
+        Source:      b.Source,
+        Tags:        make([]string, len(b.Tags)),
+    }
 
-		// Try to get favicon path if URI exists
-		if bookmark.URI != "" {
-			if iconPath, err := GetIconPath(bookmark.URI); err == nil && iconPath != "" {
-				bookmark.Icon = iconPath
-			}
-		}
+    // Convert DB tags to string slice
+    for i, tag := range b.Tags {
+        bookmark.Tags[i] = tag.Name
+    }
 
-		bookmarks = append(bookmarks, bookmark)
-	}
+    // Try to get favicon path if URI exists
+    if bookmark.URI != "" {
+        if iconPath, err := GetIconPath(bookmark.URI); err == nil && iconPath != "" {
+            bookmark.Icon = iconPath
+        }
+    }
+
+    bookmarks = append(bookmarks, bookmark)
+}
 
 	return bookmarks, nil
 }
@@ -101,40 +107,58 @@ func SaveBookmark(bookmark bookmark.Bookmark) error {
 
 // UpdateBookmarks replaces all bookmarks in the database with new ones
 func UpdateBookmarks(bookmarks bookmark.Bookmarks) error {
-	// Start transaction
-	tx := DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
+    log := logger.GetLogger()
 
-	// Only delete bookmarks, preserve favicons
-	if err := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&Bookmark{}).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
+    // Start transaction
+    tx := DB.Begin()
+    if tx.Error != nil {
+        return tx.Error
+    }
 
-	// Convert bookmark.Bookmarks to db.Bookmark
-	var dbBookmarks []Bookmark
-	for _, b := range bookmarks {
-		dbBookmark := Bookmark{
-			Title:       b.Title,
-			Path:        b.Path,
-			Description: b.Description,
-			URI:         b.URI,
-			Domain:      b.Domain,
-			Source:      b.Source,
-		}
-		dbBookmarks = append(dbBookmarks, dbBookmark)
-	}
+    // Only delete bookmarks, preserve favicons
+    if err := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&Bookmark{}).Error; err != nil {
+        tx.Rollback()
+        return err
+    }
 
-	// Save new bookmarks
-	if err := tx.Create(&dbBookmarks).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
+    // Convert bookmark.Bookmarks to db.Bookmark and handle tags
+    var dbBookmarks []Bookmark
+    for _, b := range bookmarks {
+        dbBookmark := Bookmark{
+            Title:       b.Title,
+            Path:        b.Path,
+            Description: b.Description,
+            URI:         b.URI,
+            Domain:      b.Domain,
+            Source:      b.Source,
+            Tags:        make([]Tag, 0, len(b.Tags)),
+        }
 
-	// Commit transaction
-	return tx.Commit().Error
+        // Process tags
+        for _, tagName := range b.Tags {
+            var tag Tag
+            // Find or create tag
+            result := tx.FirstOrCreate(&tag, Tag{Name: tagName})
+            if result.Error != nil {
+                tx.Rollback()
+                return result.Error
+            }
+            dbBookmark.Tags = append(dbBookmark.Tags, tag)
+        }
+
+        dbBookmarks = append(dbBookmarks, dbBookmark)
+    }
+
+    // Save new bookmarks with their tags
+    if err := tx.Create(&dbBookmarks).Error; err != nil {
+        tx.Rollback()
+        return err
+    }
+
+    log.Debug("Created bookmarks with tags", "bookmark_count", len(dbBookmarks))
+
+    // Commit transaction
+    return tx.Commit().Error
 }
 
 // GetFaviconByDomain retrieves a favicon from the database by domain

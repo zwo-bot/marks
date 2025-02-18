@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/zwo-bot/marks/bookmark"
@@ -28,6 +29,7 @@ type mozBookmark struct {
 	Typ         int
 	Url         sql.NullString
 	IconPath    sql.NullString
+	Tags        sql.NullString
 }
 
 func (fp *FirefoxPlugin) GetName() string {
@@ -99,6 +101,18 @@ func (fp *FirefoxPlugin) GetBookmarks() bookmark.Bookmarks {
 			bookmark.Description = mozBookmark.Description.String
 		}
 
+		// Process tags if available
+		if mozBookmark.Tags.Valid && mozBookmark.Tags.String != "" {
+			// Split tags string into slice and trim whitespace
+			tags := strings.Split(mozBookmark.Tags.String, ",")
+			bookmark.Tags = make([]string, 0, len(tags))
+			for _, tag := range tags {
+				if trimmed := strings.TrimSpace(tag); trimmed != "" {
+					bookmark.Tags = append(bookmark.Tags, trimmed)
+				}
+			}
+		}
+
 		bookmark.Path = getPath(mozBookmark)
 		bookmark.Source = fp.GetName()
 
@@ -124,7 +138,7 @@ func (fp *FirefoxPlugin) GetBookmarks() bookmark.Bookmarks {
 func getMozBookmarks(profile_path string) ([]mozBookmark, error) {
 	log := logger.GetLogger()
 	log.Debug("Starting getMozBookmarks", "profile_path", profile_path)
-	
+
 	// Check if places.sqlite exists
 	placesPath := profile_path + "/places.sqlite"
 	log.Debug("Opening places.sqlite", "path", placesPath)
@@ -153,8 +167,36 @@ func getMozBookmarks(profile_path string) ([]mozBookmark, error) {
 	}
 	defer sqlDB.Close()
 
-	sqlStmt := `SELECT moz_bookmarks.id, moz_bookmarks.parent, moz_bookmarks.type, moz_bookmarks.title, moz_places.url, moz_places.description
-	FROM moz_bookmarks LEFT JOIN moz_places ON moz_bookmarks.fk=moz_places.id`
+	sqlStmt := `
+WITH tags AS (
+    -- Get all tag definitions (type=2, parent=4 for tags folder)
+    SELECT id, title 
+    FROM moz_bookmarks 
+    WHERE type = 2 AND parent = 4
+),
+bookmark_tag_links AS (
+    -- Get bookmark-to-tag relationships
+    SELECT b.fk as place_id, 
+           GROUP_CONCAT(t.title) as tags
+    FROM moz_bookmarks b
+    JOIN moz_bookmarks bt ON bt.fk = b.fk  -- Find tag links for same URL
+    JOIN tags t ON bt.parent = t.id        -- Get tag names
+    WHERE b.type = 1  -- Regular bookmarks
+    GROUP BY b.fk
+)
+SELECT 
+    b.id,
+    b.parent,
+    b.type,
+    b.title,
+    p.url,
+    p.description,
+    btl.tags
+FROM moz_bookmarks b
+LEFT JOIN moz_places p ON b.fk = p.id
+LEFT JOIN bookmark_tag_links btl ON p.id = btl.place_id
+WHERE b.type = 1  -- Only regular bookmarks
+  AND b.title IS NOT NULL  -- Skip tag link entries`
 
 	log.Debug("Executing SQL query", "query", sqlStmt)
 	rows, err := sqlDB.Query(sqlStmt)
@@ -169,7 +211,7 @@ func getMozBookmarks(profile_path string) ([]mozBookmark, error) {
 	for rows.Next() {
 		rowCount++
 		var row mozBookmark
-		err = rows.Scan(&row.Id, &row.Parent, &row.Typ, &row.Title, &row.Url, &row.Description)
+		err = rows.Scan(&row.Id, &row.Parent, &row.Typ, &row.Title, &row.Url, &row.Description, &row.Tags)
 		if err != nil {
 			log.Error("Error scanning row", "error", err)
 			continue
@@ -301,16 +343,16 @@ func getFavicon(sqlDB *sql.DB, url string) ([]byte, error) {
 
 	// First try to get the page ID and icon data in a single query
 	query := `
-		WITH page AS (
-			SELECT id FROM moz_pages_w_icons WHERE page_url = ?
-		)
-		SELECT DISTINCT ic.data
-		FROM page
-		JOIN moz_icons_to_pages ip ON ip.page_id = page.id
-		JOIN moz_icons ic ON ic.id = ip.icon_id
-		ORDER BY ic.width DESC
-		LIMIT 1
-	`
+WITH page AS (
+SELECT id FROM moz_pages_w_icons WHERE page_url = ?
+)
+SELECT DISTINCT ic.data
+FROM page
+JOIN moz_icons_to_pages ip ON ip.page_id = page.id
+JOIN moz_icons ic ON ic.id = ip.icon_id
+ORDER BY ic.width DESC
+LIMIT 1
+`
 
 	log.Debug("Executing favicon query", "query", query)
 	err := sqlDB.QueryRow(query, url).Scan(&iconData)
