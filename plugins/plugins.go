@@ -6,6 +6,10 @@ import (
 	"github.com/zwo-bot/marks/internal/logger"
 	"github.com/zwo-bot/marks/plugins/interfaces"
 	reg "github.com/zwo-bot/marks/plugins/registry"
+
+	// // Import plugins to register them
+	_ "github.com/zwo-bot/marks/plugins/firefox"
+	_ "github.com/zwo-bot/marks/plugins/chrome"
 )
 
 type Plugins []interfaces.Plugin
@@ -14,10 +18,14 @@ type Plugins []interfaces.Plugin
 func Init() Plugins {
 	log := logger.GetLogger()
 	log.Info("Initializing plugins")
+	log.Debug("Starting plugin initialization")
 	plugins := Plugins{}
 
+	registered := reg.ListPlugins()
+	log.Debug("Found registered plugins", "count", len(registered), "plugins", registered)
+
 	// Initialize registered plugins
-	for _, name := range reg.ListPlugins() {
+	for _, name := range registered {
 		log.Debug("Initializing plugin", "name", name)
 		
 		// Get plugin config if available
@@ -51,7 +59,7 @@ func (p Plugins) GetBookmarks() bookmark.Bookmarks {
 		log.Debug("Got bookmarks from plugin", "plugin", name, "count", len(pluginBookmarks))
 		bookmarks = append(bookmarks, pluginBookmarks...)
 	}
-	return bookmarks.RemoveDuplicates()
+	return bookmarks
 }
 
 func (p Plugins) GetBookmarksByPlugin(pluginName string) bookmark.Bookmarks {
@@ -65,7 +73,7 @@ func (p Plugins) GetBookmarksByPlugin(pluginName string) bookmark.Bookmarks {
 			bookmarks = append(bookmarks, plugin.GetBookmarks()...)
 		}
 	}
-	return bookmarks.RemoveDuplicates()
+	return bookmarks
 }
 
 func (p Plugins) ListPlugins() []string {

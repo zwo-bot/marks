@@ -17,7 +17,7 @@ type AppConfig struct {
 // Global configuration variable
 var GlobalConfig AppConfig
 
-const configFilename = "app_config.json"
+const configFilename = "config.json"
 
 var customConfigPath string
 
@@ -27,14 +27,24 @@ func SetCustomConfigPath(path string) {
 
 func InitializeConfig() error {
     var configPath string
-    var err error
 
     if customConfigPath != "" {
         configPath = customConfigPath
     } else {
-        configPath, err = GetConfigPath(configFilename)
-        if err != nil {
-            return err
+        // Try current directory first
+        if _, err := os.Stat(configFilename); err == nil {
+            var err error
+            configPath, err = filepath.Abs(configFilename)
+            if err != nil {
+                return err
+            }
+        } else {
+            // If not in current directory, try XDG paths
+            var err error
+            configPath, err = GetConfigPath(configFilename)
+            if err != nil {
+                return err
+            }
         }
     }
 
@@ -43,7 +53,7 @@ func InitializeConfig() error {
         // File does not exist, create a default configuration with initialized map
         GlobalConfig = AppConfig{
             Plugins:        make(map[string]interface{}),
-            DefaultBrowser: "firefox",  // Set the default browser or any default values
+            DefaultBrowser: "firefox",
         }
         // Save the default configuration
         if err := SaveAppConfig(); err != nil {
@@ -66,6 +76,16 @@ func InitializeConfig() error {
 
 // GetConfigPath returns the path to the configuration file
 func GetConfigPath(filename string) (string, error) {
+    // First check current directory
+    if _, err := os.Stat(filename); err == nil {
+        absPath, err := filepath.Abs(filename)
+        if err != nil {
+            return "", err
+        }
+        return absPath, nil
+    }
+
+    // If not found in current directory, check XDG paths
     usr, err := user.Current()
     if err != nil {
         return "", err
@@ -74,9 +94,9 @@ func GetConfigPath(filename string) (string, error) {
     var path string
     switch runtime.GOOS {
     case "linux":
-        path = filepath.Join(usr.HomeDir, ".config", "bookmarks", filename) // Using .config directory
+        path = filepath.Join(usr.HomeDir, ".config", "marks", filename)
     case "darwin": // macOS is "darwin"
-        path = filepath.Join(usr.HomeDir, "Library", "Application Support", "bookmarks", filename)
+        path = filepath.Join(usr.HomeDir, "Library", "Application Support", "marks", filename)
     default:
         return "", fmt.Errorf("unsupported platform %s", runtime.GOOS)
     }
@@ -85,49 +105,67 @@ func GetConfigPath(filename string) (string, error) {
 }
 
 func LoadAppConfig() error {
-	var configPath string
-	var err error
+    var configPath string
+    var err error
 
-	if customConfigPath != "" {
-		configPath = customConfigPath
-	} else {
-		configPath, err = GetConfigPath(configFilename)
-		if err != nil {
-			return err
-		}
-	}
+    if customConfigPath != "" {
+        configPath = customConfigPath
+    } else {
+        // Try current directory first
+        if _, err := os.Stat(configFilename); err == nil {
+            configPath, err = filepath.Abs(configFilename)
+            if err != nil {
+                return err
+            }
+        } else {
+            // If not in current directory, try XDG paths
+            configPath, err = GetConfigPath(configFilename)
+            if err != nil {
+                return err
+            }
+        }
+    }
 
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return err
-	}
+    data, err := os.ReadFile(configPath)
+    if err != nil {
+        return err
+    }
 
-	return json.Unmarshal(data, &GlobalConfig)
+    return json.Unmarshal(data, &GlobalConfig)
 }
 
 func SaveAppConfig() error {
-	var configPath string
-	var err error
+    var configPath string
+    var err error
 
-	if customConfigPath != "" {
-		configPath = customConfigPath
-	} else {
-		configPath, err = GetConfigPath(configFilename)
-		if err != nil {
-			return err
-		}
-	}
+    if customConfigPath != "" {
+        configPath = customConfigPath
+    } else {
+        // Try current directory first if config exists there
+        if _, err := os.Stat(configFilename); err == nil {
+            configPath, err = filepath.Abs(configFilename)
+            if err != nil {
+                return err
+            }
+        } else {
+            // If not in current directory or doesn't exist, use XDG paths
+            configPath, err = GetConfigPath(configFilename)
+            if err != nil {
+                return err
+            }
+        }
+    }
 
-	if err := ensureDir(configPath); err != nil {
-		return err
-	}
+    if err := ensureDir(configPath); err != nil {
+        return err
+    }
 
-	data, err := json.MarshalIndent(GlobalConfig, "", "    ")
-	if err != nil {
-		return err
-	}
+    data, err := json.MarshalIndent(GlobalConfig, "", "    ")
+    if err != nil {
+        return err
+    }
 
-	return os.WriteFile(configPath, data, 0644)
+    return os.WriteFile(configPath, data, 0644)
 }
 
 func ensureDir(filePath string) error {
