@@ -21,23 +21,32 @@ rofi -show bookmarks -show-icons -modi 'bookmarks: ./marks rofi'
 
 The application will automatically try to find your browser profiles in common locations. However, if you need to specify custom profile paths, you can create a configuration file.
 
-### Default Configuration File Location
+### Configuration File Location
 
-Create your configuration file in one of these locations:
-- `~/.config/marks/config.json`
-- `$XDG_CONFIG_HOME/marks/config.json`
+The program looks for the configuration file in the following order:
+1. Current directory (`./config.json`)
+2. System config directory:
+   - Linux: `~/.config/marks/config.json`
+   - macOS: `~/Library/Application Support/marks/config.json`
+
+You can also specify a custom configuration file location using the `--config` flag:
+```bash
+marks --config /path/to/your/config.json
+```
 
 ### Example Configuration
 
-An example configuration file is provided in `config.example.json`. Here's how to configure each browser:
+An example configuration file is provided in `config.example.json`. Here's how to configure the browsers:
 
 ```json
 {
-  "firefox": {
-    "profile_path": "~/.mozilla/firefox/xxxxxxxx.default-release"
-  },
-  "chrome": {
-    "profile_path": "~/.config/google-chrome/Default"
+  "Plugins": {
+    "firefox": {
+      "profile_path": "~/.mozilla/firefox/xxxxxxxx.default-release"
+    },
+    "chrome": {
+      "profile_path": "~/.config/google-chrome/Default"
+    }
   }
 }
 ```
