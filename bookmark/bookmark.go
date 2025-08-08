@@ -40,7 +40,7 @@ func (b Bookmarks) RemoveDuplicates() Bookmarks {
 		for _, tag := range new {
 			tagMap[tag] = true
 		}
-		
+
 		merged := make([]string, 0, len(tagMap))
 		for tag := range tagMap {
 			merged = append(merged, tag)
@@ -65,9 +65,14 @@ func (b Bookmarks) RemoveDuplicates() Bookmarks {
 	return result
 }
 
-func (b Bookmark) UrlIsValid(i int) bool {
+// URLIsValid checks whether the bookmark's URI is reachable.
+func (b Bookmark) URLIsValid() bool {
 	httpClient := new(http.Client)
-	_, err := httpClient.Head(b.URI)
-
-	return err == nil
+	resp, err := httpClient.Head(b.URI)
+	if err != nil {
+		return false
+	}
+	// Ensure the response body is closed to avoid resource leaks.
+	resp.Body.Close()
+	return true
 }
