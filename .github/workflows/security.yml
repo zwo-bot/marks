@@ -1,0 +1,39 @@
+name: Security
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  gosec:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+      - name: Run gosec
+        id: gosec
+        run: gosec -fmt sarif -out gosec.sarif ./...
+        continue-on-error: true
+
+      - name: Upload SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: gosec.sarif
+
+      - name: Fail if gosec found issues
+        if: steps.gosec.outcome == 'failure'
+        run: exit 1
