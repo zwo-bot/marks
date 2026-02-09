@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -35,8 +36,12 @@ func showRofiBookmarks(cmd *cobra.Command, args []string) {
 		// Get the selected URL from ROFI_INFO
 		url := os.Getenv("ROFI_INFO")
 		if url != "" {
-			// Open URL in default browser using xdg-open
-			openCmd := exec.Command("xdg-open", url)
+			// Open URL in default browser
+			openCommand := "xdg-open"
+			if runtime.GOOS == "darwin" {
+				openCommand = "open"
+			}
+			openCmd := exec.Command(openCommand, url)
 			openCmd.Start()
 			return
 		}

@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 	"github.com/zwo-bot/marks/bookmark"
-	"github.com/zwo-bot/marks/db"
+	"github.com/zwo-bot/marks/internal/favicon"
 	"github.com/zwo-bot/marks/internal/logger"
 	"github.com/zwo-bot/marks/plugins/interfaces"
 )
@@ -123,7 +123,7 @@ func (fp *FirefoxPlugin) GetBookmarks() bookmark.Bookmarks {
 				log.Debug("Setting favicon for bookmark", "title", bookmark.Title, "icon_path", bookmark.Icon)
 			} else {
 				// Try to get favicon from cache
-				if iconPath, err := db.GetIconPath(bookmark.URI); err == nil && iconPath != "" {
+				if iconPath, err := favicon.GetIconPath(bookmark.URI); err == nil && iconPath != "" {
 					bookmark.Icon = iconPath
 					log.Debug("Got favicon from cache", "title", bookmark.Title, "icon_path", bookmark.Icon)
 				}
@@ -161,7 +161,7 @@ func getMozBookmarks(profile_path string) ([]mozBookmark, error) {
 	}
 
 	// Open database connection
-	sqlDB, err := sql.Open("sqlite3", dst.Name())
+	sqlDB, err := sql.Open("sqlite", dst.Name())
 	if err != nil {
 		return nil, fmt.Errorf("error opening database: %v", err)
 	}
@@ -242,7 +242,7 @@ WHERE b.type = 1  -- Only regular bookmarks
 			}
 			if len(iconData) > 0 {
 				log.Debug("Found favicon data", "url", bookmark.Url.String, "size", len(iconData))
-				iconPath, err := db.SaveAndCacheIcon(iconData, bookmark.Url.String)
+				iconPath, err := favicon.SaveAndCacheIcon(iconData, bookmark.Url.String)
 				if err != nil {
 					log.Debug("Could not cache favicon", "error", err)
 					continue
@@ -295,7 +295,7 @@ func copyAndOpenDB(sourcePath string, prefix string) (*sql.DB, error) {
 	}
 
 	log.Debug("Opening copied database", "path", dst.Name())
-	db, err := sql.Open("sqlite3", dst.Name())
+	db, err := sql.Open("sqlite", dst.Name())
 	if err != nil {
 		log.Debug("Failed to open database", "error", err)
 		return nil, err

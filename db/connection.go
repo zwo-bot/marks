@@ -1,44 +1,62 @@
 package db
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/zwo-bot/marks/bookmark"
 	"github.com/zwo-bot/marks/internal/logger"
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )
 
+// FaviconPathResolver is a function type that resolves favicon paths.
+// This avoids circular imports with the favicon package.
+var FaviconPathResolver func(urlStr string) (string, error)
+
 var DB *gorm.DB
 
-// CacheDir returns the path to the favicon cache directory
-func CacheDir() (string, error) {
-	cacheHome := os.Getenv("XDG_CACHE_HOME")
-	if cacheHome == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("could not get user home directory: %v", err)
+// DataDir returns the path to the application data directory.
+// On Linux: ~/.local/share/marks/
+// On macOS: ~/Library/Application Support/marks/
+func DataDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not get user home directory: %v", err)
+	}
+
+	var dataDir string
+	switch runtime.GOOS {
+	case "darwin":
+		dataDir = filepath.Join(home, "Library", "Application Support", "marks")
+	default: // linux and others
+		xdgData := os.Getenv("XDG_DATA_HOME")
+		if xdgData == "" {
+			xdgData = filepath.Join(home, ".local", "share")
 		}
-		cacheHome = filepath.Join(home, ".cache")
+		dataDir = filepath.Join(xdgData, "marks")
 	}
 
-	cacheDir := filepath.Join(cacheHome, "rofi-bookmarks")
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
-		return "", fmt.Errorf("could not create cache directory: %v", err)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return "", fmt.Errorf("could not create data directory: %v", err)
 	}
 
-	return cacheDir, nil
+	return dataDir, nil
 }
 
 func ConnectDatabase() error {
-	var err error
-	DB, err = gorm.Open(sqlite.Open("bookmarks.db"), &gorm.Config{
+	dataDir, err := DataDir()
+	if err != nil {
+		return fmt.Errorf("could not get data directory: %v", err)
+	}
+
+	dbPath := filepath.Join(dataDir, "bookmarks.db")
+
+	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{
 		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
 	})
 	if err == nil {
@@ -48,6 +66,9 @@ func ConnectDatabase() error {
 }
 
 func CloseDatabase() error {
+	if DB == nil {
+		return nil
+	}
 	db, err := DB.DB()
 	if err != nil {
 		return err
@@ -62,7 +83,6 @@ func GetBookmarks() (bookmark.Bookmarks, error) {
 		return nil, err
 	}
 
-	// Convert db.Bookmark to bookmark.Bookmark
 	var bookmarks bookmark.Bookmarks
 	for _, b := range dbBookmarks {
 		bm := bookmark.Bookmark{
@@ -75,14 +95,13 @@ func GetBookmarks() (bookmark.Bookmarks, error) {
 			Tags:        make([]string, len(b.Tags)),
 		}
 
-		// Convert DB tags to string slice
 		for i, tag := range b.Tags {
 			bm.Tags[i] = tag.Name
 		}
 
-		// Try to get favicon path if URI exists
-		if bm.URI != "" {
-			if iconPath, err := GetIconPath(bm.URI); err == nil && iconPath != "" {
+		// Try to get favicon path if URI exists and resolver is set
+		if bm.URI != "" && FaviconPathResolver != nil {
+			if iconPath, err := FaviconPathResolver(bm.URI); err == nil && iconPath != "" {
 				bm.Icon = iconPath
 			}
 		}
@@ -109,19 +128,16 @@ func SaveBookmark(bm bookmark.Bookmark) error {
 func UpdateBookmarks(bms bookmark.Bookmarks) error {
 	log := logger.GetLogger()
 
-	// Start transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
 
-	// Only delete bookmarks, preserve favicons
 	if err := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&Bookmark{}).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	// Convert bookmark.Bookmarks to db.Bookmark and handle tags
 	var dbBookmarks []Bookmark
 	for _, b := range bms {
 		dbBookmark := Bookmark{
@@ -134,10 +150,8 @@ func UpdateBookmarks(bms bookmark.Bookmarks) error {
 			Tags:        make([]Tag, 0, len(b.Tags)),
 		}
 
-		// Process tags
 		for _, tagName := range b.Tags {
 			var tag Tag
-			// Find or create tag
 			result := tx.FirstOrCreate(&tag, Tag{Name: tagName})
 			if result.Error != nil {
 				tx.Rollback()
@@ -149,7 +163,6 @@ func UpdateBookmarks(bms bookmark.Bookmarks) error {
 		dbBookmarks = append(dbBookmarks, dbBookmark)
 	}
 
-	// Save new bookmarks with their tags
 	if err := tx.Create(&dbBookmarks).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -157,7 +170,6 @@ func UpdateBookmarks(bms bookmark.Bookmarks) error {
 
 	log.Debug("Created bookmarks with tags", "bookmark_count", len(dbBookmarks))
 
-	// Commit transaction
 	return tx.Commit().Error
 }
 
@@ -182,7 +194,6 @@ func GetFaviconByDomain(domain string) (*Favicon, error) {
 func SaveFavicon(data []byte, urlStr string) (*Favicon, error) {
 	log := logger.GetLogger()
 
-	// Parse URL to get domain
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
 		log.Debug("Error parsing URL", "url", urlStr, "error", err)
@@ -190,7 +201,6 @@ func SaveFavicon(data []byte, urlStr string) (*Favicon, error) {
 	}
 	domain := parsedURL.Host
 
-	// Check if favicon already exists
 	existing, err := GetFaviconByDomain(domain)
 	if err != nil {
 		log.Debug("Error checking existing favicon", "domain", domain, "error", err)
@@ -201,7 +211,6 @@ func SaveFavicon(data []byte, urlStr string) (*Favicon, error) {
 		return existing, nil
 	}
 
-	// Create new favicon
 	favicon := &Favicon{
 		Data:   data,
 		Domain: domain,
@@ -216,84 +225,4 @@ func SaveFavicon(data []byte, urlStr string) (*Favicon, error) {
 
 	log.Debug("Successfully saved favicon to database", "domain", domain)
 	return favicon, nil
-}
-
-// SaveAndCacheIcon stores the icon in both the database and filesystem cache
-// Returns the path to the cached file for use with rofi
-func SaveAndCacheIcon(iconData []byte, urlStr string) (string, error) {
-	log := logger.GetLogger()
-
-	if len(iconData) == 0 {
-		log.Debug("No icon data provided", "url", urlStr)
-		return "", fmt.Errorf("no icon data provided")
-	}
-
-	// Save to database first
-	favicon, err := SaveFavicon(iconData, urlStr)
-	if err != nil {
-		log.Debug("Could not save favicon to database", "url", urlStr, "error", err)
-		return "", fmt.Errorf("could not save favicon to database: %v", err)
-	}
-
-	// Get cache directory for filesystem storage
-	cacheDir, err := CacheDir()
-	if err != nil {
-		log.Debug("Could not get cache directory", "error", err)
-		return "", err
-	}
-
-	// Create hash of icon data for filename
-	hash := sha256.Sum256(iconData)
-	filename := hex.EncodeToString(hash[:])
-	iconPath := filepath.Join(cacheDir, filename)
-
-	// Check if icon already exists in filesystem cache
-	if _, err := os.Stat(iconPath); err == nil {
-		log.Debug("Icon already exists in cache", "path", iconPath)
-		return iconPath, nil
-	}
-
-	// Write icon to filesystem cache
-	log.Debug("Writing icon to cache", "path", iconPath, "size", len(favicon.Data))
-	if err := os.WriteFile(iconPath, favicon.Data, 0644); err != nil {
-		log.Debug("Could not write icon to cache", "error", err)
-		return "", fmt.Errorf("could not write icon to cache: %v", err)
-	}
-
-	log.Debug("Successfully cached icon", "path", iconPath)
-	return iconPath, nil
-}
-
-// GetIconPath returns the filesystem path for a favicon, fetching from database if needed
-func GetIconPath(urlStr string) (string, error) {
-	log := logger.GetLogger()
-
-	// Parse URL to get domain
-	parsedURL, err := url.Parse(urlStr)
-	if err != nil {
-		log.Debug("Error parsing URL", "url", urlStr, "error", err)
-		return "", err
-	}
-	domain := parsedURL.Host
-
-	// Try to get favicon from database
-	favicon, err := GetFaviconByDomain(domain)
-	if err != nil {
-		log.Debug("Error getting favicon from database", "domain", domain, "error", err)
-		return "", err
-	}
-	if favicon == nil {
-		log.Debug("No favicon found in database", "domain", domain)
-		return "", nil
-	}
-
-	// Cache the icon data to filesystem if it exists in database
-	iconPath, err := SaveAndCacheIcon(favicon.Data, urlStr)
-	if err != nil {
-		log.Debug("Error caching favicon", "domain", domain, "error", err)
-		return "", err
-	}
-
-	log.Debug("Successfully got icon path", "domain", domain, "path", iconPath)
-	return iconPath, nil
 }
