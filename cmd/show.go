@@ -39,7 +39,7 @@ func init() {
 	rootCmd.AddCommand(listPluginsCmd)
 }
 
-func showBookmarks(cmd *cobra.Command, _ []string) {
+func showBookmarks(cmd *cobra.Command, args []string) { //nolint:staticcheck // args reused for update spawn
 	log := logger.GetLogger()
 
 	// First get bookmarks from DB for fast response
