@@ -7,22 +7,32 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/zwo-bot/marks/db"
 )
 
-// CacheDir returns the path to the favicon cache directory
+// CacheDir returns the path to the favicon cache directory.
+// On Linux: ~/.cache/marks-favicons/
+// On macOS: ~/Library/Caches/marks-favicons/
 func CacheDir() (string, error) {
-	cacheHome := os.Getenv("XDG_CACHE_HOME")
-	if cacheHome == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("could not get user home directory: %v", err)
-		}
-		cacheHome = filepath.Join(home, ".cache")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not get user home directory: %v", err)
 	}
 
-	cacheDir := filepath.Join(cacheHome, "marks-favicons")
+	var cacheDir string
+	switch runtime.GOOS {
+	case "darwin":
+		cacheDir = filepath.Join(home, "Library", "Caches", "marks-favicons")
+	default: // linux and others
+		cacheHome := os.Getenv("XDG_CACHE_HOME")
+		if cacheHome == "" {
+			cacheHome = filepath.Join(home, ".cache")
+		}
+		cacheDir = filepath.Join(cacheHome, "marks-favicons")
+	}
+
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		return "", fmt.Errorf("could not create cache directory: %v", err)
 	}
@@ -30,8 +40,8 @@ func CacheDir() (string, error) {
 	return cacheDir, nil
 }
 
-// SaveAndCacheIcon stores the icon in both the database and filesystem cache
-// Returns the path to the cached file for use with rofi
+// SaveAndCacheIcon stores the icon in both the database and filesystem cache.
+// Returns the path to the cached file for use with rofi.
 func SaveAndCacheIcon(iconData []byte, urlStr string) (string, error) {
 	if len(iconData) == 0 {
 		return "", fmt.Errorf("no icon data provided")
@@ -67,16 +77,14 @@ func SaveAndCacheIcon(iconData []byte, urlStr string) (string, error) {
 	return iconPath, nil
 }
 
-// GetIconPath returns the filesystem path for a favicon, fetching from database if needed
+// GetIconPath returns the filesystem path for a favicon, fetching from database if needed.
 func GetIconPath(urlStr string) (string, error) {
-	// Parse URL to get domain
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
 		return "", err
 	}
 	domain := parsedURL.Host
 
-	// Try to get favicon from database
 	favicon, err := db.GetFaviconByDomain(domain)
 	if err != nil {
 		return "", err
@@ -85,6 +93,5 @@ func GetIconPath(urlStr string) (string, error) {
 		return "", nil
 	}
 
-	// Cache the icon data to filesystem if it exists in database
 	return SaveAndCacheIcon(favicon.Data, urlStr)
 }

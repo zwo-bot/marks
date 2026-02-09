@@ -32,6 +32,12 @@ build.linux.amd64: build/linux/amd64/$(BINARY)
 .PHONY: build.linux.arm64
 build.linux.arm64: build/linux/arm64/$(BINARY)
 
+.PHONY: build.darwin
+build.darwin: build/darwin/amd64/$(BINARY)
+
+.PHONY: build.darwin.arm64
+build.darwin.arm64: build/darwin/arm64/$(BINARY)
+
 build/$(BINARY): $(SOURCES)
 	CGO_ENABLED=0 go build -o build/$(BINARY) $(BUILD_FLAGS) -ldflags "$(LDFLAGS)" .
 
@@ -40,3 +46,9 @@ build/linux/amd64/$(BINARY): $(SOURCES)
 
 build/linux/arm64/$(BINARY): $(SOURCES)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/linux/arm64/$(BINARY) -ldflags "$(LDFLAGS)" .
+
+build/darwin/amd64/$(BINARY): $(SOURCES)
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/darwin/amd64/$(BINARY) -ldflags "$(LDFLAGS)" .
+
+build/darwin/arm64/$(BINARY): $(SOURCES)
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) -o build/darwin/arm64/$(BINARY) -ldflags "$(LDFLAGS)" .

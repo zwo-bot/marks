@@ -54,6 +54,10 @@ func Initialize(logLevel string, logFilePath string) {
 }
 
 func GetLogger() *slog.Logger {
+    if log == nil {
+        // Return a default logger if not initialized
+        return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+    }
     return log
 }
 

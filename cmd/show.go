@@ -39,7 +39,7 @@ func init() {
 	rootCmd.AddCommand(listPluginsCmd)
 }
 
-func showBookmarks(cmd *cobra.Command, args []string) {
+func showBookmarks(cmd *cobra.Command, _ []string) {
 	log := logger.GetLogger()
 
 	// First get bookmarks from DB for fast response
@@ -79,17 +79,17 @@ func showBookmarks(cmd *cobra.Command, args []string) {
 	}
 
 	// Spawn the update command as a separate process
-	args = []string{"update"}
+	updateArgs := []string{"update"}
 	
 	// Pass config path if it was specified
 	if rootOptions.configPath != "" {
-		args = append(args, "--config", rootOptions.configPath)
+		updateArgs = append(updateArgs, "--config", rootOptions.configPath)
 	}
 	
 	// Pass log level to maintain consistent logging
-	args = append(args, "--log-level", rootOptions.logLevel)
+	updateArgs = append(updateArgs, "--log-level", rootOptions.logLevel)
 
-	updateCmd := exec.Command(os.Args[0], args...)
+	updateCmd := exec.Command(os.Args[0], updateArgs...)
 	// Start the command without waiting for it to complete
 	if err := updateCmd.Start(); err != nil {
 		log.Debug("Error starting update process", "error", err)

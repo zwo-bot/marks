@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/zwo-bot/marks/db"
 	"github.com/zwo-bot/marks/internal/config"
+	"github.com/zwo-bot/marks/internal/favicon"
 	"github.com/zwo-bot/marks/internal/logger"
 )
 
@@ -88,6 +89,10 @@ func init() {
 			log.Error("Error connecting to database", "error", err)
 			os.Exit(1)
 		}
+
+		// Set up favicon path resolver to avoid circular imports
+		db.FaviconPathResolver = favicon.GetIconPath
+
 		log.Debug("Database connected")
 	})
 }

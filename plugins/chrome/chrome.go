@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 	"github.com/zwo-bot/marks/bookmark"
 	"github.com/zwo-bot/marks/internal/favicon"
 	"github.com/zwo-bot/marks/internal/logger"
@@ -166,7 +166,7 @@ func copyAndOpenDB(sourcePath string, prefix string) (*sql.DB, error) {
 	}
 
 	// Open the database with SQLite
-	db, err := sql.Open("sqlite3", dst.Name())
+	db, err := sql.Open("sqlite", dst.Name())
 	if err != nil {
 		return nil, fmt.Errorf("error opening database: %v", err)
 	}

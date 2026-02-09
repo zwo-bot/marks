@@ -62,6 +62,14 @@ func (b Bookmarks) RemoveDuplicates() Bookmarks {
 		}
 	}
 
+	// Update result with merged tags from seen map
+	for i, bm := range result {
+		key := makeKey(bm)
+		if merged, ok := seen[key]; ok {
+			result[i].Tags = merged.Tags
+		}
+	}
+
 	return result
 }
 
