@@ -39,7 +39,7 @@ func init() {
 	rootCmd.AddCommand(listPluginsCmd)
 }
 
-func showBookmarks(cmd *cobra.Command, args []string) {
+func showBookmarks(cmd *cobra.Command, _ []string) {
 	log := logger.GetLogger()
 
 	// First get bookmarks from DB for fast response

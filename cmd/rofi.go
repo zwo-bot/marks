@@ -42,7 +42,7 @@ func showRofiBookmarks(cmd *cobra.Command, args []string) {
 				openCommand = "open"
 			}
 			openCmd := exec.Command(openCommand, url)
-			openCmd.Start()
+			_ = openCmd.Start()
 			return
 		}
 	}
